@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Дневник путешествий</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 850px; margin: 0 auto; padding: 20px; background: #eef2f3; color: #333; }
+        .block { background: white; padding: 20px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .trip-card { border-left: 5px solid #28a745; padding-left: 15px; margin-bottom: 20px; background: #fdfdfd; padding: 15px; border-radius: 4px; }
+        input, textarea, select { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #0056b3; }
+        .badge { background: #e1f5fe; color: #0288d1; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .rating { color: #f57c00; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🌍 Дневник путешествий</h1>
+
+    <!-- Блок пользователя -->
+    <div class="block">
+        <h3>👤 Пользователь системы</h3>
+        <div id="authSection">
+            <input type="text" id="usernameInput" placeholder="Введите ваш никнейм для входа/регистрации" style="width: 70%;">
+            <button onclick="login()">Войти / Создать профиль</button>
+        </div>
+        <div id="userGreeting" style="display:none;">
+            Приветствуем, <b id="currentUserName"></b>! Теперь вы можете вести свой дневник.
+            <button onclick="logout()" style="background:#dc3545; margin-left:15px;">Выйти</button>
+        </div>
+    </div>
+
+    <!-- Форма создания записи -->
+    <div id="createTripSection" class="block" style="display:none;">
+        <h3>✍️ Записать новое путешествие</h3>
+        <form id="tripForm">
+            <input type="text" name="title" placeholder="Куда вы съездили? (Название)" required>
+            <textarea name="description" placeholder="Опишите ваши впечатления..." rows="3" required></textarea>
+            <input type="number" step="0.1" name="cost" placeholder="Стоимость поездки (в рублях)" required>
+            <input type="text" name="places" placeholder="Какие конкретно места посетили? (через запятую)">
+            
+            <label>Оценка безопасности (1-5):</label>
+            <select name="safety">
+                <option value="5">5 — Идеально безопасно</option>
+                <option value="4">4 — Хорошо</option>
+                <option value="3">3 — Нормально</option>
+                <option value="2">2 — Подозрительно</option>
+                <option value="1">1 — Опасно</option>
+            </select>
+
+            <label>Оценка удобства передвижения / транспорта (1-5):</label>
+            <select name="transport">
+                <option value="5">5 — Отличный транспорт / инфраструктура</option>
+                <option value="4">4 — Хорошо</option>
+                <option value="3">3 — Удовлетворительно</option>
+                <option value="2">2 — Плохо</option>
+                <option value="1">1 — Ужасно</option>
+            </select>
+            
+            <button type="button" onclick="submitTrip()">Сохранить в дневник</button>
+        </form>
+    </div>
+
+    <!-- Лента всех путешествий -->
+    <h2>✈️ Путешествия исследователей мира</h2>
+    <div id="tripsContainer"></div>
+
+    <script>
+        // Проверка авторизации из шаблона Jinja2
+        const loggedUser = "{{ user.username if user else '' }}";
+
+        if (loggedUser) {
+            showUserInterface(loggedUser);
+        }
+
+        function showUserInterface(username) {
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('userGreeting').style.display = 'block';
+            document.getElementById('currentUserName').innerText = username;
+            document.getElementById('createTripSection').style.display = 'block';
+        }
+
+        async function login() {
+            const username = document.getElementById('usernameInput').value.trim();
+            if(!username) return alert("Введите имя!");
+            const formData = new FormData();
+            formData.append('username', username);
+            await fetch('/auth/login', { method: 'POST', body: formData });
+            location.reload();
+        }
+
+        async function logout() {
+            await fetch('/auth/logout', { method: 'POST' });
+            location.reload();
+        }
+
+        async function submitTrip() {
+            const formData = new FormData(document.getElementById('tripForm'));
+            await fetch('/trips/create', { method: 'POST', body: formData });
+            document.getElementById('tripForm').reset();
+            loadTrips();
+        }
+
+        async function loadTrips() {
+            const res = await fetch('/trips');
+            const trips = await res.get_json() || await res.json();
+            const container = document.getElementById('tripsContainer');
+            container.innerHTML = '';
+            
+            trips.forEach(t => {
+                container.innerHTML += `
+                    <div class="block trip-card">
+                        <h3>${t.title}</h3>
+                        <p>${t.description}</p>
+                        <div style="margin: 10px 0;">
+                            <span class="badge">💰 Бюджет: ${t.cost.toLocaleString()} руб.</span>
+                            <span class="badge" style="background:#e8f5e9; color:#2e7d32;">📍 Локации: ${t.places_to_visit || 'Не указаны'}</span>
+                        </div>
+                        <div style="font-size: 13px; margin-top:5px;">
+                            🛡️ Безопасность: <span class="rating">${t.safety_rating}/5</span> | 
+                            🚗 Транспорт: <span class="rating">${t.transport_rating}/5</span>
+                        </div>
+                        <p style="text-align:right; margin:0;"><small>Автор дневника: <b>@${t.author}</b></small></p>
+                    </div>
+                `;
+            });
+        }
+
+        loadTrips();
+    </script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+from sqlalchemy import create_engine, Column, Integer, String, Float, Text, ForeignKey
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+
+DATABASE_URL = "sqlite:///./travel_diary.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    
+    trips = relationship("Trip", back_populates="author")
+
+class Trip(Base):
+    __tablename__ = "trips"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id"))
+    
+    # ➔ 3 Дополнительные функции о путешествии:
+    cost = Column(Float, default=0.0)             # 1. Стоимость путешествия
+    places_to_visit = Column(Text, nullable=True) # 2. Места для посещения
+    safety_rating = Column(Integer, default=5)    # 3. Оценка безопасности (1-5)
+    transport_rating = Column(Integer, default=5) # 3. Оценка удобства передвижения (1-5)
+
+    author = relationship("User", back_populates="trips")
+
+def init_db():
+    Base.metadata.create_engine(bind=engine)
+    
+    # Первичное демо-наполнение
+    session = SessionLocal()
+    if session.query(User).count() == 0:
+        user1 = User(username="Иван_Путешественник")
+        user2 = User(username="Мария_Тур")
+        session.add_all([user1, user2])
+        session.commit()
+        
+        trip1 = Trip(
+            title="Выходные в Казани", 
+            description="Отличная поездка на выходные, город очень красивый.",
+            cost=15000.0,
+            places_to_visit="Казанский Кремль, Улица Баумана, Кул-Шариф",
+            safety_rating=5, transport_rating=4,
+            author_id=user1.id
+        )
+        trip2 = Trip(
+            title="Алтайский трекинг", 
+            description="Сложный, но безумно красивый маршрут по горам.",
+            cost=45000.0,
+            places_to_visit="Мультинские озера, Шавлинские озера",
+            safety_rating=4, transport_rating=3,
+            author_id=user2.id
+        )
+        session.add_all([trip1, trip2])
+        session.commit()
+    session.close()
